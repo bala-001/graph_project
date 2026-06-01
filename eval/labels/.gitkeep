@@ -1,0 +1,9 @@
+Placeholder file. Eval-set labels live here but are excluded from version control
+(see project .gitignore — labels are PHI-adjacent).
+
+The two label files this directory should hold:
+- relationship_types.jsonl  (F6 deliverable)
+- contradiction_validity.jsonl  (F6 deliverable)
+
+Both are produced by extending the cascade-OCR plan's 50-document eval set with
+relationship-aware annotations from analyst-corrected production extractions.

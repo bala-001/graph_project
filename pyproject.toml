@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paiq-graph"
+version = "0.0.1"
+description = "PAIQ Idea 11.3 Phase 1: relationship-aware extraction (Approach D) + extraction-time guardrails"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "PAIQ team" },
+]
+dependencies = [
+    "pydantic>=2.5",
+    "openai>=1.12",
+    "anthropic>=0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "scipy>=1.11",
+]
+eval = [
+    "scipy>=1.11",
+    "pandas>=2.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra -q --strict-markers"
+markers = [
+    "regression: iso-precision regression tests across existing field types (Week-4 Kill Criteria gate)",
+    "eval: full LLM eval runs (skipped by default in CI; explicit opt-in via -m eval)",
+    "slow: takes >30 seconds",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

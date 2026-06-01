@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.local
+
+# Eval-set artifacts (large; PHI-adjacent — never commit)
+eval/labels/*.jsonl
+eval/labels/raw/
+!eval/labels/.gitkeep
+!eval/labels/README.md
+
+# Journal artifacts (per-document state; runtime data, not source)
+journal_data/
+*.journal
