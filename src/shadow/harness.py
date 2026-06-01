@@ -70,12 +70,15 @@ def _load_ground_truth_edges(path: Path) -> list[Edge]:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return []
-    # Detect format by the first non-whitespace char so a genuinely corrupt JSON
-    # file surfaces its real parse error instead of being silently retried as JSONL.
-    if text[0] in "[{":
+    # Try whole-file JSON first (supports a top-level array or an {"edges": [...]}
+    # wrapper). Fall back to JSONL (one object per line) on a decode error - that
+    # path is also how object-per-line JSONL is parsed, since its multi-line form
+    # is not valid as a single JSON document. A genuinely corrupt JSONL line still
+    # raises a clear per-line error from the fallback.
+    try:
         data = json.loads(text)
         records = data if isinstance(data, list) else data.get("edges", [])
-    else:
+    except json.JSONDecodeError:
         records = [json.loads(line) for line in text.splitlines() if line.strip()]
     return [Edge.model_validate(r) for r in records]
 
