@@ -11,23 +11,30 @@ GC policy is implemented in the background-job system at the PAIQ infrastructure
 layer, not in this module. This module covers in-process replay only for the
 case where a worker restarts within a document's extraction.
 
-T5 deliverable. STUB.
+T5 deliverable.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from .writer import JournalWriter
 from ..d_extraction.schema import Edge
 
 
 def replay_journal(journal_path: Path) -> list[Edge]:
-    """Read a journal file and return the edges that were emitted before the crash.
+    """Read a journal file and return the edges emitted before the crash.
 
-    Caller uses these to reconstruct PartialEdgeState before continuing extraction
-    from the next chunk.
-
-    STUB — T5 deliverable.
+    One JSON object per line (as written by JournalWriter.flush). Missing file or
+    blank lines yield an empty / shorter list. Caller uses these to reconstruct
+    PartialEdgeState before continuing extraction from the next chunk.
     """
-    raise NotImplementedError("T5 deliverable")
+    journal_path = Path(journal_path)
+    if not journal_path.exists():
+        return []
+    edges: list[Edge] = []
+    for line in journal_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        edges.append(Edge.model_validate_json(line))
+    return edges

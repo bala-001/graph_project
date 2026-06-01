@@ -10,10 +10,14 @@ from .counters import (
     increment_counter_2_different_edge,
     increment_counter_3_retry_exhausted,
 )
+from .observability import RollingAggregate, aggregate, within_fp_band
 
 __all__ = [
     "PerDocumentCounters",
     "increment_counter_1_same_edge",
     "increment_counter_2_different_edge",
     "increment_counter_3_retry_exhausted",
+    "RollingAggregate",
+    "aggregate",
+    "within_fp_band",
 ]

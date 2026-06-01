@@ -44,3 +44,16 @@ def get_prompt(template_id: str, *, d_mode: bool) -> str:
     if template_id not in D_PROMPTS:
         raise KeyError(f"Unknown D-mode prompt template: {template_id}")
     return D_PROMPTS[template_id]
+
+
+def resolve_prompt(template_id: str) -> str:
+    """Production entry point: route to the right prompt based on the feature flag.
+
+    Consults `src.feature_flags.is_d_enabled()` and returns the D-modified prompt
+    when the flag is on, or the preserved baseline prompt when off. This is the
+    one-config rollback path per D12: flipping `paiq.d_extraction.enabled` to
+    false reverts to baseline prompts with no code change.
+    """
+    from ..feature_flags import is_d_enabled
+
+    return get_prompt(template_id, d_mode=is_d_enabled())

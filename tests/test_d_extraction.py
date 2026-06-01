@@ -13,6 +13,7 @@ T1 + T9 deliverables. All stubs.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from src.d_extraction import (
     DocumentExtraction,
@@ -25,12 +26,18 @@ from src.d_extraction import (
 
 def test_edge_schema_validates_required_fields():
     """Edge schema rejects missing required fields (kind, subject, object)."""
-    pytest.skip("T1 deliverable")
+    with pytest.raises(ValidationError):
+        Edge(kind=EdgeKind.REQUIRES)  # missing subject + object
 
 
 def test_edge_schema_rejects_invalid_kind():
     """Edge with kind outside EdgeKind enum raises ValidationError."""
-    pytest.skip("T1 deliverable")
+    with pytest.raises(ValidationError):
+        Edge(
+            kind="not_a_real_kind",
+            subject=DrugNode(canonical_id="A", surface_form="A"),
+            object=DrugNode(canonical_id="B", surface_form="B"),
+        )
 
 
 def test_extraction_emits_baseline_fields_alongside_edges(sample_drug_node):
