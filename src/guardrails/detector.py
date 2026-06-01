@@ -9,6 +9,9 @@ The four scenarios:
 4. Age conflict (new exact age qualifier contradicts an already-extracted exact age
    qualifier for the same drug-indication)
 
+All node identities go through `node_canonical_id` so subjects and objects share
+one key space (unresolved drugs do not collide or split).
+
 ASCII (detection order; first hit short-circuits to REJECT_RETRY):
 
     edge --> circular? --> prereq mismatch? --> contradictory limits? --> age conflict?
@@ -24,7 +27,7 @@ from __future__ import annotations
 from enum import Enum
 
 from ..d_extraction.schema import Edge, EdgeKind
-from .state import PartialEdgeState, object_canonical_id
+from .state import PartialEdgeState, node_canonical_id
 
 
 class Verdict(str, Enum):
@@ -61,13 +64,13 @@ def detect_circular_dependency(edge: Edge, state: PartialEdgeState) -> bool:
     """Returns True if adding `edge` would create a cycle in the requires graph."""
     if edge.kind != EdgeKind.REQUIRES:
         return False
-    start = object_canonical_id(edge.object)  # B, in "A requires B"
-    target = edge.subject.canonical_id  # A
-    # Adjacency over already-extracted REQUIRES edges.
+    start = node_canonical_id(edge.object)  # B, in "A requires B"
+    target = node_canonical_id(edge.subject)  # A
+    # Adjacency over already-extracted REQUIRES edges, keyed consistently.
     adjacency: dict[str, list[str]] = {}
     for e in state.edges:
         if e.kind == EdgeKind.REQUIRES:
-            adjacency.setdefault(e.subject.canonical_id, []).append(object_canonical_id(e.object))
+            adjacency.setdefault(node_canonical_id(e.subject), []).append(node_canonical_id(e.object))
     # Is there an existing requires-path from B back to A? If so, A->B closes a cycle.
     seen: set[str] = set()
     stack = [start]
@@ -89,7 +92,7 @@ def detect_contradictory_limits(edge: Edge, state: PartialEdgeState) -> bool:
     Contradiction = greatest lower bound exceeds least upper bound for any range
     qualifier (age / dosage / quantity).
     """
-    related = state.edges_between(edge.subject.canonical_id, object_canonical_id(edge.object))
+    related = state.edges_between(node_canonical_id(edge.subject), node_canonical_id(edge.object))
     population = related + [edge]
     for min_key, max_key in _RANGE_PAIRS:
         mins = [e.qualifiers[min_key] for e in population if e.qualifiers.get(min_key) is not None]
@@ -105,7 +108,7 @@ def detect_prerequisite_chain_mismatch(edge: Edge, state: PartialEdgeState) -> b
     if edge.kind not in (EdgeKind.REQUIRES, EdgeKind.EXCLUDES):
         return False
     opposite = EdgeKind.EXCLUDES if edge.kind == EdgeKind.REQUIRES else EdgeKind.REQUIRES
-    for e in state.edges_between(edge.subject.canonical_id, object_canonical_id(edge.object)):
+    for e in state.edges_between(node_canonical_id(edge.subject), node_canonical_id(edge.object)):
         if e.kind == opposite:
             return True
     return False
@@ -117,7 +120,7 @@ def detect_age_conflict(edge: Edge, state: PartialEdgeState) -> bool:
     new_exact = edge.qualifiers.get("age_exact")
     if new_exact is None:
         return False
-    for e in state.edges_between(edge.subject.canonical_id, object_canonical_id(edge.object)):
+    for e in state.edges_between(node_canonical_id(edge.subject), node_canonical_id(edge.object)):
         existing_exact = e.qualifiers.get("age_exact")
         if existing_exact is not None and existing_exact != new_exact:
             return True

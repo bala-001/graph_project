@@ -62,3 +62,29 @@ def test_detect_age_conflict_against_existing_qualifier():
     assert check(new, state) == Verdict.REJECT_RETRY
     # A non-conflicting edge on a fresh pair passes all four detectors.
     assert check(_edge(EdgeKind.REQUIRES, "A", "C"), state) == Verdict.ACCEPT
+
+
+def _unresolved_edge(kind, subject_surface, object_surface):
+    """Edge whose drug nodes have NO canonical id (the surface-form fallback path)."""
+    return Edge(
+        kind=kind,
+        subject=DrugNode(canonical_id="", surface_form=subject_surface),
+        object=DrugNode(canonical_id="", surface_form=object_surface),
+    )
+
+
+def test_circular_dependency_detected_for_unresolved_drugs():
+    """Cycle detection must work when drugs are unresolved (canonical_id empty)."""
+    state = PartialEdgeState(document_id="d", edges=[_unresolved_edge(EdgeKind.REQUIRES, "Aspirin", "Beta")])
+    new = _unresolved_edge(EdgeKind.REQUIRES, "Beta", "Aspirin")
+    assert detect_circular_dependency(new, state) is True
+    assert check(new, state) == Verdict.REJECT_RETRY
+
+
+def test_no_false_positive_across_distinct_unresolved_drugs():
+    """Two DIFFERENT unresolved subjects must not collide on an empty-string key."""
+    state = PartialEdgeState(document_id="d", edges=[_unresolved_edge(EdgeKind.REQUIRES, "Aspirin", "Beta")])
+    # Different subject (Zantac) excluding the same object must NOT be a prereq mismatch.
+    new = _unresolved_edge(EdgeKind.EXCLUDES, "Zantac", "Beta")
+    assert detect_prerequisite_chain_mismatch(new, state) is False
+    assert check(new, state) == Verdict.ACCEPT

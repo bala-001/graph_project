@@ -70,10 +70,12 @@ def _load_ground_truth_edges(path: Path) -> list[Edge]:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return []
-    try:
+    # Detect format by the first non-whitespace char so a genuinely corrupt JSON
+    # file surfaces its real parse error instead of being silently retried as JSONL.
+    if text[0] in "[{":
         data = json.loads(text)
         records = data if isinstance(data, list) else data.get("edges", [])
-    except json.JSONDecodeError:
+    else:
         records = [json.loads(line) for line in text.splitlines() if line.strip()]
     return [Edge.model_validate(r) for r in records]
 

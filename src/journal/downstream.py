@@ -56,6 +56,8 @@ def is_orphaned(
     if doc.extraction_complete:
         return False
     now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:  # tolerate a naive injected `now` (treat as UTC)
+        now = now.replace(tzinfo=timezone.utc)
     return (now - _parse_iso(doc.extraction_started_at)) > timedelta(hours=ttl_hours)
 
 

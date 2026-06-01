@@ -104,19 +104,34 @@ def _canon_node(node) -> tuple:
     return ("literal", _norm_text(str(node)))
 
 
-def _canon_qualifiers(qualifiers: dict) -> tuple:
-    """Sorted, normalized qualifier (key, value) pairs.
+def _canon_value(value):
+    """Canonical, type-tagged qualifier value.
 
-    Keys are case-folded and sorted; string values are normalized via
-    _norm_text; numeric values are preserved as-is.
+    Numbers and numeric-looking strings collapse to ("num", float) so provider
+    serialization drift (18 vs "18") does not split the same logical edge.
+    Booleans are tagged separately from ints so True and 1 do not collide.
+    Other strings normalize via _norm_text.
     """
-    items = []
-    for key in sorted(qualifiers):
-        value = qualifiers[key]
-        if isinstance(value, str):
-            value = _norm_text(value)
-        items.append((str(key).strip().lower(), value))
-    return tuple(items)
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, (int, float)):
+        return ("num", float(value))
+    if isinstance(value, str):
+        stripped = value.strip()
+        try:
+            return ("num", float(stripped))
+        except ValueError:
+            return ("text", _norm_text(value))
+    return ("other", value)
+
+
+def _canon_qualifiers(qualifiers: dict) -> tuple:
+    """Sorted, type-normalized qualifier (key, value) pairs.
+
+    Keys are case-folded and sorted; values are canonicalized via _canon_value so
+    numeric drift and bool/int aliasing do not under-count the same-edge FP counter.
+    """
+    return tuple((str(key).strip().lower(), _canon_value(qualifiers[key])) for key in sorted(qualifiers))
 
 
 def canonicalize_edge(edge: Edge) -> tuple:
