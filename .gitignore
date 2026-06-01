@@ -43,3 +43,6 @@ eval/labels/raw/
 # Journal artifacts (per-document state; runtime data, not source)
 journal_data/
 *.journal
+
+# gstack local artifacts (QA reports, sessions, state)
+.gstack/
