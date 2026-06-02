@@ -150,7 +150,13 @@ class OpenAIProvider:
                 "json_schema": {
                     "name": "document_extraction",
                     "schema": DocumentExtraction.model_json_schema(),
-                    "strict": True,
+                    # strict=False on purpose: the schema carries open-ended maps
+                    # (qualifiers, existing_fields) which OpenAI strict mode forbids
+                    # (it requires additionalProperties:false + all keys in required
+                    # on every object). Achieving strict=True needs those maps closed
+                    # to fixed-key objects, a Q3-era schema decision; until then the
+                    # schema is advisory. Sending strict=True today 400s the request.
+                    "strict": False,
                 },
             },
         )
@@ -172,7 +178,7 @@ class OpenAIProvider:
 class AnthropicProvider:
     """Anthropic tool-use structured outputs (D1 fallback). Imports the SDK lazily."""
 
-    def __init__(self, model: str = "claude-opus-4-7"):
+    def __init__(self, model: str = "claude-sonnet-4-6"):
         self.model = model
 
     def _client(self):
@@ -194,7 +200,9 @@ class AnthropicProvider:
             tool_choice={"type": "tool", "name": "emit_document_extraction"},
             messages=[{"role": "user", "content": f"{prompt}\n\n---\n\n{chunk}"}],
         )
-        tool_use = next(b for b in response.content if getattr(b, "type", None) == "tool_use")
+        tool_use = next((b for b in response.content if getattr(b, "type", None) == "tool_use"), None)
+        if tool_use is None:
+            raise RuntimeError("Anthropic returned no tool_use block (check stop_reason / max_tokens)")
         doc = DocumentExtraction.model_validate(tool_use.input)
         return doc.edges, doc.existing_fields
 

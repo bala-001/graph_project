@@ -14,8 +14,13 @@ from __future__ import annotations
 # TEMPLATE PROMPTS - NOT PRODUCTION-VALIDATED.
 # These are functional defaults so the pipeline runs end-to-end. Replace the
 # verbatim text with PAIQ's real production prompts when Q3 (which prompts/
-# schemas change) closes. The feature flag (paiq.d_extraction.enabled) defaults
-# OFF, so the D template never reaches real documents until a human turns it on.
+# schemas change) closes.
+#
+# SAFETY: the D feature flag does NOT stop an LLM call - it only suppresses edge
+# emission + guardrails. The real barriers to sending real documents to a real
+# model are (1) the provider defaults to the offline MockProvider, and (2) the
+# extractor FAILS CLOSED via are_prompts_templates(): a non-mock provider refuses
+# to run on these templates unless PAIQ_ALLOW_TEMPLATE_PROMPTS=true is set.
 # ============================================================================
 
 _BASELINE_EXTRACT = """\
@@ -49,6 +54,19 @@ D_PROMPTS: dict[str, str] = {
 }
 
 DEFAULT_TEMPLATE_ID = "extract_document"
+
+
+def are_prompts_templates() -> bool:
+    """True while the bundled NOT-production-validated template prompts are unedited.
+
+    The extractor uses this to fail closed: a real LLM provider refuses to run on
+    these templates unless explicitly overridden. Replacing the prompt text with
+    real prompts (Q3) flips this to False automatically.
+    """
+    return (
+        BASELINE_PROMPTS.get(DEFAULT_TEMPLATE_ID) == _BASELINE_EXTRACT
+        and D_PROMPTS.get(DEFAULT_TEMPLATE_ID) == _D_EXTRACT
+    )
 
 
 def get_prompt(template_id: str, *, d_mode: bool) -> str:

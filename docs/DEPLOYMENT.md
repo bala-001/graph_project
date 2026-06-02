@@ -5,10 +5,17 @@ flag, and roll it back. Read alongside `docs/architecture/kill-criteria.md` and
 `docs/planning/phase1-implementation-plan.md`.
 
 ## Safe defaults
-The image and package default to `PAIQ_PROVIDER=mock` and
-`PAIQ_D_EXTRACTION_ENABLED=false`. In that state the service does baseline field
-extraction only, with no edges, no guardrails, no network. Nothing reaches real
-documents until a human sets a real provider AND flips the flag on.
+The image and package default to `PAIQ_PROVIDER=mock` (offline) and
+`PAIQ_D_EXTRACTION_ENABLED=false`. With the mock provider nothing leaves the
+process.
+
+IMPORTANT: the D feature flag is NOT the network barrier. It only suppresses edge
+emission + guardrails; with the flag OFF but a real provider selected, document
+text would still be sent to the model under the baseline prompt. The real barriers
+to sending real document text to a model are: (1) the offline MockProvider default,
+and (2) a FAIL-CLOSED guard - a non-mock provider refuses to run while the bundled
+template prompts are unedited, unless `PAIQ_ALLOW_TEMPLATE_PROMPTS=true` is set.
+Replace the prompts with real ones (Q3) before enabling a real provider.
 
 ## Container
 
@@ -74,7 +81,20 @@ that as a required check once the F6 label store exists.
   GC sweep orphaned partials.
 
 ## Production prerequisites (cannot ship to real documents without these)
-1. Q3: real extraction prompts in `src/d_extraction/prompts.py` (replace templates).
-2. Provider credentials + `PAIQ_PROVIDER` set.
+1. Q3: real extraction prompts in `src/d_extraction/prompts.py` (replace templates;
+   the fail-closed guard releases automatically once they differ from the bundled text).
+2. Provider credentials + `PAIQ_PROVIDER` set + a confirmed current model id.
 3. F6 labels + cascade-OCR eval set in the label store; Kill Criteria certified on them.
 4. Week-1 sponsor commitment + Week-2 complaint root-cause audit cleared.
+
+## Known limitations (follow-ups before broad production)
+- **Package name.** The importable package is `src` (distribution `paiq-graph`).
+  `src` is a generic top-level name that can collide in a shared multi-package
+  image. Rename to a unique package (e.g. `paiq_graph`) before co-deploying with
+  other packages. Non-blocking for a single-package image.
+- **OpenAI strict mode.** The OpenAI provider uses `json_schema` with
+  `strict=False` because the schema carries open-ended maps (qualifiers,
+  existing_fields). Closing those to fixed-key objects (a Q3-era schema decision)
+  is required to use strict mode.
+- **Anthropic model default** (`claude-sonnet-4-6`) is a sensible default but
+  confirm a current, entitled model id for your account.

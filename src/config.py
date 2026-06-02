@@ -48,7 +48,7 @@ class Config:
     """Resolved runtime configuration. Build with Config.from_env()."""
     provider: str = field(default_factory=lambda: os.environ.get("PAIQ_PROVIDER", "mock"))
     openai_model: str = field(default_factory=lambda: os.environ.get("PAIQ_OPENAI_MODEL", "gpt-4o"))
-    anthropic_model: str = field(default_factory=lambda: os.environ.get("PAIQ_ANTHROPIC_MODEL", "claude-opus-4-7"))
+    anthropic_model: str = field(default_factory=lambda: os.environ.get("PAIQ_ANTHROPIC_MODEL", "claude-sonnet-4-6"))
     d_enabled: bool = field(default_factory=lambda: _env_bool("PAIQ_D_EXTRACTION_ENABLED", False))
     journal_dir: str = field(default_factory=lambda: os.environ.get("PAIQ_JOURNAL_DIR", ".paiq-journals"))
     batch_size: int = field(default_factory=lambda: _env_int("PAIQ_JOURNAL_BATCH_SIZE", 10))

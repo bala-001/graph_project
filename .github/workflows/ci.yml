@@ -46,11 +46,15 @@ jobs:
       - name: Edge precision report (non-gating on sample)
         run: python eval/runners/edge_precision.py --eval-set eval/labels/sample --output edge.json || true
       - name: Judge pass-rate report (non-gating on sample)
-        run: python eval/runners/judge_pass_rate.py --eval-set eval/labels/sample --output judge.json || true
-      - name: Validate reports are well-formed
+        run: python eval/runners/judge_pass_rate.py --eval-set eval/labels/sample --use-wilson-lower-bound --output judge.json || true
+      - name: Validate report SHAPE (NOT a gate)
+        # Asserts provenance + that the lower-bound gates are correctly NOT
+        # satisfiable on the tiny synthetic sample (passed==false). This must NOT
+        # be read as the 85%/95% Kill Criteria gates passing; those are only
+        # meaningful on production-scale labels in the access-controlled store.
         run: |
-          python -c "import json; r=json.load(open('edge.json')); assert r['aggregate']['precision']==1.0, r"
-          python -c "import json; r=json.load(open('judge.json')); assert r['judge_pass_rate']==1.0, r"
+          python -c "import json; r=json.load(open('edge.json')); assert r['note']=='synthetic sample' and r['passed'] is False and 'aggregate' in r and set(r['per_edge_type'])>={'requires','excludes'}, r"
+          python -c "import json; r=json.load(open('judge.json')); assert r['note']=='synthetic sample' and r['passed'] is False and r['gate_on']=='wilson_lower', r"
 
   # NOTE (eval-trigger merge gate, per CLAUDE.md): PRs touching
   # src/d_extraction/prompts.py, src/d_extraction/schema.py,

@@ -135,9 +135,13 @@ def compare_d_to_ground_truth(
     if baseline_extraction is not None:
         for field_name, baseline_value in baseline_extraction.existing_fields.items():
             d_value = d_extraction.existing_fields.get(field_name)
+            # Per-document exact-match diff: 1.0 if D changed the field value vs
+            # baseline, else 0.0. This is a single-document signal; the rate-based
+            # >5% Week-4 Kill Criteria gate is computed ACROSS documents by
+            # eval/runners/regression.py, not here.
             delta = 0.0 if d_value == baseline_value else 1.0
             field_iso[field_name] = delta
-            if delta > 0.05:  # Week-4 Kill Criteria threshold (5%)
+            if delta > 0.0:
                 regressed.append(field_name)
 
     return ShadowResult(

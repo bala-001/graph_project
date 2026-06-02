@@ -59,3 +59,14 @@ def gold_edges(record: dict) -> list[Edge]:
 
 def gold_fields(record: dict) -> dict:
     return dict(record.get("gold_fields", {}))
+
+
+def dataset_is_synthetic(records: list[dict]) -> bool:
+    """Authoritative provenance: True only when EVERY record is marked synthetic.
+
+    Reads a per-record `"synthetic": true` marker that travels with the data,
+    rather than guessing from the file path. A production label set must NOT carry
+    this marker, so report provenance ("synthetic sample" vs "production labels")
+    cannot be spoofed by a path that merely contains the word "sample".
+    """
+    return bool(records) and all(r.get("synthetic") is True for r in records)

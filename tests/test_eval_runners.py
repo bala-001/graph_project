@@ -33,6 +33,9 @@ def test_edge_precision_runner_reports_perfect_point_estimate(tmp_path):
     assert report["aggregate"]["precision"] == 1.0  # mock emits exactly the gold edges
     assert report["aggregate"]["recall"] == 1.0
     assert set(report["per_edge_type"]) == {"requires", "excludes", "applies_to", "overrides", "effective_from"}
+    # Honest provenance + the lower-bound gate is NOT satisfiable on the tiny sample.
+    assert report["note"] == "synthetic sample"
+    assert report["passed"] is False
 
 
 def test_judge_runner_reports_pass_rate(tmp_path):
@@ -41,3 +44,5 @@ def test_judge_runner_reports_pass_rate(tmp_path):
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["judge_pass_rate"] == 1.0
     assert report["n_pages"] >= 1
+    assert report["note"] == "synthetic sample"
+    assert report["passed"] is False  # Wilson lower bound on small N can't certify 95%

@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from eval.datasets import load_dataset, gold_fields  # noqa: E402
+from eval.datasets import load_dataset, gold_fields, dataset_is_synthetic  # noqa: E402
 from src.config import Config  # noqa: E402
 from src.d_extraction import extract_document  # noqa: E402
 
@@ -39,24 +39,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     records = load_dataset(args.eval_set)
-    tmp = tempfile.mkdtemp(prefix="paiq-reg-")
-    baseline_cfg = Config(provider="mock", d_enabled=False, journal_dir=tmp)
-    d_cfg = Config(provider="mock", d_enabled=True, journal_dir=tmp)
-
     fields: dict[str, dict] = {}
-    for record in records:
-        gold = gold_fields(record)
-        if not gold:
-            continue
-        base = extract_document(record["document_id"], record["chunks"], baseline_cfg)
-        dmode = extract_document(record["document_id"], record["chunks"], d_cfg)
-        for key, gold_value in gold.items():
-            slot = fields.setdefault(key, {"total": 0, "base_hit": 0, "d_hit": 0})
-            slot["total"] += 1
-            if base.existing_fields.get(key) == gold_value:
-                slot["base_hit"] += 1
-            if dmode.existing_fields.get(key) == gold_value:
-                slot["d_hit"] += 1
+
+    with tempfile.TemporaryDirectory(prefix="paiq-reg-") as tmp:
+        baseline_cfg = Config(provider="mock", d_enabled=False, journal_dir=tmp)
+        d_cfg = Config(provider="mock", d_enabled=True, journal_dir=tmp)
+        for record in records:
+            gold = gold_fields(record)
+            if not gold:
+                continue
+            base = extract_document(record["document_id"], record["chunks"], baseline_cfg)
+            dmode = extract_document(record["document_id"], record["chunks"], d_cfg)
+            for key, gold_value in gold.items():
+                slot = fields.setdefault(key, {"total": 0, "base_hit": 0, "d_hit": 0})
+                slot["total"] += 1
+                if base.existing_fields.get(key) == gold_value:
+                    slot["base_hit"] += 1
+                if dmode.existing_fields.get(key) == gold_value:
+                    slot["d_hit"] += 1
 
     per_field = {}
     regressed = []
@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         "regression_threshold": args.regression_threshold,
         "regressed_fields": regressed,
         "passed": passed,
-        "note": "synthetic sample" if "sample" in str(args.eval_set) else "production labels",
+        "note": "synthetic sample" if dataset_is_synthetic(records) else "production labels",
     }
     out = json.dumps(report, indent=2)
     if args.output:

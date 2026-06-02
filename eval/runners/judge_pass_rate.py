@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tempfile
@@ -23,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from eval.datasets import load_dataset  # noqa: E402
+from eval.datasets import load_dataset, dataset_is_synthetic  # noqa: E402
 from src.config import Config  # noqa: E402
 from src.d_extraction import extract_document  # noqa: E402
 from src.cascade_integration import recalibrate_judge  # noqa: E402
@@ -41,24 +42,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     records = load_dataset(args.eval_set)
-    tmp = tempfile.mkdtemp(prefix="paiq-judge-")
 
-    # Build a cascade-style pages file (one page per chunk) the recal harness reads.
-    pages_path = Path(tmp) / "pages.jsonl"
-    page_id = 0
-    lines = []
-    for record in records:
-        for chunk in record["chunks"]:
-            lines.append(json.dumps({"page_id": page_id, "text": chunk, "ocr_label": "cheap_ok"}))
-            page_id += 1
-    pages_path.write_text("\n".join(lines), encoding="utf-8")
+    with tempfile.TemporaryDirectory(prefix="paiq-judge-") as tmp:
+        # Build a cascade-style pages file (one page per chunk) the recal harness reads.
+        pages_path = Path(tmp) / "pages.jsonl"
+        page_id = 0
+        lines = []
+        for record in records:
+            for chunk in record["chunks"]:
+                lines.append(json.dumps({"page_id": page_id, "text": chunk, "ocr_label": "cheap_ok"}))
+                page_id += 1
+        pages_path.write_text("\n".join(lines), encoding="utf-8")
 
-    cfg = Config(provider="mock", d_enabled=True, journal_dir=tmp)
+        cfg = Config(provider="mock", d_enabled=True, journal_dir=tmp)
 
-    def d_extraction_module(text: str):
-        return extract_document(f"page-{abs(hash(text)) % 100000}", [text], cfg)
+        def d_extraction_module(text: str):
+            # Deterministic, collision-free per-page id (no salted hash, no modulo).
+            pid = "page-" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+            return extract_document(pid, [text], cfg)
 
-    result = recalibrate_judge(pages_path, d_extraction_module)
+        result = recalibrate_judge(pages_path, d_extraction_module)
+
     gate_value = result.judge_pass_rate_wilson_lower if args.use_wilson_lower_bound else result.judge_pass_rate
     passed = gate_value >= args.threshold
 
@@ -70,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         "gate_on": "wilson_lower" if args.use_wilson_lower_bound else "point",
         "passed": passed,
         "failure_modes": result.failure_modes,
-        "note": "synthetic sample" if "sample" in str(args.eval_set) else "production labels",
+        "note": "synthetic sample" if dataset_is_synthetic(records) else "production labels",
     }
     out = json.dumps(report, indent=2)
     if args.output:

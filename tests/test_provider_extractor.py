@@ -75,3 +75,51 @@ def test_extract_document_multi_chunk_accumulates(tmp_path):
         _cfg(tmp_path),
     )
     assert len(doc.edges) == 2
+
+
+def test_extract_document_dedups_duplicate_edges(tmp_path):
+    # Same edge emitted in two chunks -> accepted + journaled once (D4 hygiene).
+    doc = extract_document(
+        "doc-dup",
+        ["EDGE requires DRUG_A DRUG_B", "EDGE requires DRUG_A DRUG_B"],
+        _cfg(tmp_path),
+    )
+    assert len(doc.edges) == 1
+    journal_lines = [l for l in (tmp_path / "doc-dup.journal").read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(journal_lines) == 1
+
+
+def test_real_provider_on_template_prompts_fails_closed(monkeypatch):
+    from src.d_extraction.extractor import _guard_template_prompts
+
+    monkeypatch.delenv("PAIQ_ALLOW_TEMPLATE_PROMPTS", raising=False)
+    _guard_template_prompts(Config(provider="mock"))  # mock is always allowed
+    import pytest
+    with pytest.raises(RuntimeError):
+        _guard_template_prompts(Config(provider="openai"))  # real provider + template prompts
+    # explicit override lets it through (testing only)
+    monkeypatch.setenv("PAIQ_ALLOW_TEMPLATE_PROMPTS", "true")
+    _guard_template_prompts(Config(provider="openai"))
+
+
+def test_extract_document_writes_incomplete_record_on_failure(tmp_path, monkeypatch):
+    from src.d_extraction import extractor as extractor_mod
+    from src.d_extraction.provider import MockProvider
+
+    class FailSecondChunk(MockProvider):
+        def __init__(self):
+            self.calls = 0
+
+        def extract_chunk(self, prompt, chunk):
+            self.calls += 1
+            if self.calls >= 2:
+                raise RuntimeError("provider boom")
+            return super().extract_chunk(prompt, chunk)
+
+    monkeypatch.setattr(extractor_mod, "get_provider", lambda cfg: FailSecondChunk())
+    import pytest
+    with pytest.raises(RuntimeError):
+        extract_document("doc-crash", ["EDGE requires DRUG_A DRUG_B", "EDGE applies_to DRUG_A IND_X"], _cfg(tmp_path))
+    # A partial, INVISIBLE record was persisted for the GC/re-queue policy.
+    written = json.loads((tmp_path / "doc-crash.json").read_text(encoding="utf-8"))
+    assert written["extraction_complete"] is False
