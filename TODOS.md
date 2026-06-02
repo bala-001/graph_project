@@ -6,6 +6,17 @@ Captured from eng-review iter-5. Format per gstack convention: what / why / pros
 
 Full list at `~/.gstack/projects/projects_poc_innovations/tasks-eng-review-20260526-173441.jsonl`. P1 tasks ordered roughly along the critical path.
 
+> **Implementation status (updated).** The codebase is now engineering-complete
+> and deployable offline (68 tests pass, 91.9% coverage, `paiq-d` CLI + Docker +
+> CI). Built: T2, T4, T5, T6, T7 (in-process), T9 (edge tests), T12, T13, plus
+> the end-to-end pipeline, provider abstraction (mock/openai/anthropic), and
+> functional eval runners (T3/T10/T11 against a synthetic sample). Still gated on
+> Phase-0 org inputs (cannot complete here): **T1** real provider prompts (Q3),
+> **T8** F6 labels, and the **live** T3/T10/T11 runs + the per-field regression
+> suite on real labels. Provider+prompts ship as templates behind a flag that
+> defaults OFF. See `docs/planning/phase1-implementation-plan.md` and
+> `docs/DEPLOYMENT.md`.
+
 - [ ] **T14 (P3, ~3 days)** — Write D integration spec at `docs/architecture/d-integration-spec.md`. **Lands before any code.** F1 deliverable.
 - [ ] **T1 (P1, ~3 days)** — Define Pydantic edge schema + wire provider built-in structured outputs (OpenAI `response_format: json_schema` strict OR Anthropic tool-use mode). Output: `src/d_extraction/schema.py` + provider config.
 - [ ] **T8 (P1, ~1 wk)** — Extend cascade-OCR eval set with relationship-type labels + contradiction-validity labels per F6 / D5. Can run in parallel with T1.

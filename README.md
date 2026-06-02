@@ -108,20 +108,35 @@ pip install -e .[dev]
 # Run tests
 pytest tests/
 
-# Run edge-precision eval on the labeled set
-python eval/runners/edge_precision.py --eval-set eval/labels/
+# Run extraction offline (mock provider, D mode) via the CLI
+printf 'FIELD drug_name=Adalimumab\nEDGE requires DRUG_A DRUG_B age_min=18\n' > /tmp/doc.txt
+paiq-d extract /tmp/doc.txt --provider mock --d-mode
 
-# Run iso-precision regression suite on existing field types
-python eval/runners/regression.py --baseline-set eval/labels/
+# Eval runners against the synthetic sample (non-PHI; dev/CI only)
+python eval/runners/edge_precision.py --eval-set eval/labels/sample
+python eval/runners/regression.py     --eval-set eval/labels/sample
+python eval/runners/judge_pass_rate.py --eval-set eval/labels/sample --use-wilson-lower-bound
 ```
+
+Full install/config/deploy: `docs/INSTALL.md`, `docs/DEPLOYMENT.md`.
 
 ## Status
 
-**Phase 0 (in progress)** — complaint root-cause audit, sponsor KPI conversation,
-SLA budget confirmation, V1 baseline measurement. Owners and dates in CEO plan
-Open Questions section. Phase 1 build kicks off once Q3 (D scope confirmation)
-closes Week 1.
+**Engineering: complete and deployable (offline).** Every module is implemented
+(no stubs), wired into an end-to-end pipeline (`extract_document`), packaged with
+a `paiq-d` CLI, a Dockerfile, and GitHub Actions CI. It installs and runs with no
+API keys: the provider defaults to an offline `MockProvider` and the D feature
+flag defaults OFF. 68 tests pass (10 production-gate regression tests skipped),
+coverage 91.9%. See `docs/INSTALL.md` and `docs/DEPLOYMENT.md`.
 
-**Phase 1 (not yet started)** — D + guardrails implementation per the eng-review
-JSONL task list (14 tasks T1-T14) at
-`~/.gstack/projects/projects_poc_innovations/tasks-eng-review-20260526-173441.jsonl`.
+**NOT yet production-validated for real PBM documents.** Before real-document use,
+the org must supply: (1) the real extraction prompts (the Q3 decision; the
+bundled prompts in `src/d_extraction/prompts.py` are clearly-marked TEMPLATES),
+(2) provider credentials + `PAIQ_PROVIDER` + `PAIQ_D_EXTRACTION_ENABLED=true`,
+(3) the F6 relationship/contradiction labels + cascade-OCR eval set in the
+access-controlled store, with the Kill Criteria gates certified on them (the
+bundled `eval/labels/sample/` is synthetic, non-PHI, for dev/CI only), and
+(4) Week-1 sponsor commitment + Week-2 complaint root-cause audit cleared.
+
+**Phase 0 (org, in progress)** — complaint root-cause audit, sponsor KPI
+conversation, SLA budget confirmation. Owners/dates in the CEO plan Open Questions.
