@@ -47,18 +47,20 @@ def handle_verdict(
     verdict: Verdict,
     state: PartialEdgeState,
     retry_llm_call,  # callable: (validator_error: str) -> Edge
+    max_retries: int = MAX_RETRIES,
 ) -> RetryOutcome:
     """Apply the retry policy on a REJECT_RETRY verdict.
 
     Returns RetryOutcome with the accepted edge (or None on exhaust) and the
     counter deltas. Caller applies the deltas to `state` and persists via the
-    journal.
+    journal. `max_retries` defaults to MAX_RETRIES but is overridable so the
+    Q8 config knob (PAIQ_GUARDRAILS_MAX_RETRIES) can flow through.
     """
     if verdict == Verdict.ACCEPT:
         return RetryOutcome(accepted_edge=original_edge)
 
     prev_key = canonicalize_edge(original_edge)
-    for _attempt in range(1, MAX_RETRIES + 1):
+    for _attempt in range(1, max_retries + 1):
         new_edge = retry_llm_call(_VALIDATOR_ERROR)
         new_key = canonicalize_edge(new_edge)
         if new_key == prev_key:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paiq-graph"
-version = "0.0.1"
+version = "0.1.0"
 description = "PAIQ Idea 11.3 Phase 1: relationship-aware extraction (Approach D) + extraction-time guardrails"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,20 +13,26 @@ authors = [
 ]
 dependencies = [
     "pydantic>=2.5",
-    "openai>=1.12",
-    "anthropic>=0.18",
 ]
 
 [project.optional-dependencies]
+# Real LLM providers (only needed when PAIQ_PROVIDER=openai|anthropic; the
+# default offline MockProvider needs neither).
+openai = ["openai>=1.12"]
+anthropic = ["anthropic>=0.18"]
+providers = ["openai>=1.12", "anthropic>=0.18"]
+# scipy powers Clopper-Pearson + non-95% Wilson; only the eval runners use it.
+eval = ["scipy>=1.11"]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "scipy>=1.11",
+    "openai>=1.12",
+    "anthropic>=0.18",
 ]
-eval = [
-    "scipy>=1.11",
-    "pandas>=2.1",
-]
+
+[project.scripts]
+paiq-d = "src.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -41,4 +47,8 @@ markers = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"src" = ["py.typed"]

@@ -65,6 +65,36 @@ def wilson_lower_bound(successes: int, total: int, confidence: float = 0.95) -> 
     return max(0.0, (center - margin) / denom)
 
 
+def clopper_pearson_lower_bound(successes: int, total: int, confidence: float = 0.95) -> float:
+    """Clopper-Pearson (exact) interval lower bound for a binomial proportion.
+
+    Exact for small N, where the Wilson normal approximation is weakest. Returns
+    0.0 for zero successes or zero total. Requires scipy (imported lazily).
+    """
+    if total <= 0 or successes <= 0:
+        return 0.0
+    from scipy.stats import beta
+
+    alpha = 1.0 - confidence
+    return float(beta.ppf(alpha / 2, successes, total - successes + 1))
+
+
+def lower_bound(successes: int, total: int, confidence: float = 0.95, method: str = "auto") -> float:
+    """Binomial-proportion CI lower bound, defending Kill Criteria gates (D12).
+
+    method: 'wilson' | 'clopper-pearson' | 'auto'. Per D12, 'auto' uses
+    Clopper-Pearson for small N (< 30, where Wilson's normal approximation is
+    unreliable) and Wilson otherwise.
+    """
+    if method == "wilson":
+        return wilson_lower_bound(successes, total, confidence)
+    if method in ("clopper-pearson", "clopper_pearson", "cp"):
+        return clopper_pearson_lower_bound(successes, total, confidence)
+    if total < 30:
+        return clopper_pearson_lower_bound(successes, total, confidence)
+    return wilson_lower_bound(successes, total, confidence)
+
+
 def _load_ground_truth_edges(path: Path) -> list[Edge]:
     """Load analyst-corrected ground-truth edges from a JSON list or JSONL file."""
     text = path.read_text(encoding="utf-8").strip()

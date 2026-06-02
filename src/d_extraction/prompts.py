@@ -10,21 +10,45 @@ once Q3 (which prompts change) closes Week 1.
 from __future__ import annotations
 
 
+# ============================================================================
+# TEMPLATE PROMPTS - NOT PRODUCTION-VALIDATED.
+# These are functional defaults so the pipeline runs end-to-end. Replace the
+# verbatim text with PAIQ's real production prompts when Q3 (which prompts/
+# schemas change) closes. The feature flag (paiq.d_extraction.enabled) defaults
+# OFF, so the D template never reaches real documents until a human turns it on.
+# ============================================================================
+
+_BASELINE_EXTRACT = """\
+You are a PBM policy extractor. From the document chunk, extract the existing
+field-level criteria (drug name, age limit, effective dates, step-therapy
+entries, quantity limits) exactly as PAIQ does today. Do NOT infer relationships.
+Return them in the existing_fields map of the document extraction schema."""
+
+_D_EXTRACT = """\
+You are a PBM policy extractor with relationship awareness (Approach D). From the
+document chunk, extract BOTH:
+1. The existing field-level criteria into existing_fields (drug name, age limit,
+   effective dates, step-therapy entries, quantity limits) - unchanged from baseline.
+2. Structured edge-triples into edges, using the five predicates
+   requires / excludes / applies_to / overrides / effective_from, with qualifiers
+   (age_min, age_max, dosage_min, dosage_max, ...) where stated.
+Emit only relationships the text supports. Do not hallucinate edges in
+low-relationship-density text. Conform exactly to the provided JSON schema."""
+
 # Baseline (pre-D) prompts. Preserved verbatim for feature-flag rollback.
 # DO NOT MODIFY without updating the rollback path in src/feature_flags/.
 BASELINE_PROMPTS: dict[str, str] = {
-    # Populated from existing PAIQ extraction code during T1 scoping (Q3).
-    # Keys are prompt-template IDs (e.g., "extract_drug_fields", "extract_age_limits").
-    # Values are the verbatim baseline prompt strings.
+    "extract_document": _BASELINE_EXTRACT,
 }
 
 
-# D-modified prompts. Each one extends the baseline to ALSO emit structured edges
+# D-modified prompts. Each extends the baseline to ALSO emit structured edges
 # alongside existing field outputs.
 D_PROMPTS: dict[str, str] = {
-    # Populated during T1. Mirrors BASELINE_PROMPTS keys + an additive "emit edges"
-    # instruction with reference to the structured-output schema (DocumentExtraction).
+    "extract_document": _D_EXTRACT,
 }
+
+DEFAULT_TEMPLATE_ID = "extract_document"
 
 
 def get_prompt(template_id: str, *, d_mode: bool) -> str:
