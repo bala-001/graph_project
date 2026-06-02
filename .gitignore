@@ -49,3 +49,6 @@ journal_data/
 
 # gstack local artifacts (QA reports, sessions, state)
 .gstack/
+
+# Office temp/lock files (e.g. ~$deck.pptx while open)
+~$*
