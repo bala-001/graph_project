@@ -10,5 +10,16 @@ Per D12 downstream policy: orphaned `extraction_complete=false` rows older than
 
 from .writer import JournalWriter, BATCH_SIZE, BATCH_TIMEOUT_SECONDS
 from .replay import replay_journal
+from .downstream import is_visible, filter_visible, is_orphaned, gc_candidates, GC_TTL_HOURS
 
-__all__ = ["JournalWriter", "BATCH_SIZE", "BATCH_TIMEOUT_SECONDS", "replay_journal"]
+__all__ = [
+    "JournalWriter",
+    "BATCH_SIZE",
+    "BATCH_TIMEOUT_SECONDS",
+    "replay_journal",
+    "is_visible",
+    "filter_visible",
+    "is_orphaned",
+    "gc_candidates",
+    "GC_TTL_HOURS",
+]

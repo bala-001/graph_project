@@ -10,7 +10,8 @@ This schema is the contract between:
 Per D1: provider built-ins enforce SHAPE, not SEMANTICS. Semantic correctness
 is defended by the eval suite + guardrails, NOT by this schema.
 
-T1 deliverable. STUB — real type definitions land via Implementation Task T1.
+T1 deliverable. Implemented: Pydantic models (EdgeKind, DrugNode, IndicationNode,
+Edge, DocumentExtraction) + canonicalize_edge.
 """
 
 from __future__ import annotations
@@ -80,17 +81,76 @@ class DocumentExtraction(BaseModel):
     guardrails_counter_3_retry_exhausted: int = 0
 
 
-def canonicalize_edge(edge: Edge) -> tuple:
-    """Canonicalize an edge to a comparable tuple per D12.
+_TRAILING_PUNCT = ".,;:!?"
 
-    Two edges with the same canonical tuple are "same edge" for FP-counter (1).
+
+def _norm_text(value: str) -> str:
+    """Lowercase, strip whitespace, strip trailing punctuation."""
+    return value.strip().lower().rstrip(_TRAILING_PUNCT).strip()
+
+
+def _canon_node(node) -> tuple:
+    """Canonical key for a subject or object node.
+
+    Uses the canonical drug/indication ID when resolved; falls back to the
+    normalized surface form when the ID is empty (the unresolved case per
+    docs/architecture/data-model.md). Bare-string objects normalize directly.
+    """
+    if isinstance(node, DrugNode):
+        cid = (node.canonical_id or "").strip()
+        return ("drug", cid.lower() if cid else _norm_text(node.surface_form))
+    if isinstance(node, IndicationNode):
+        cid = (node.canonical_id or "").strip()
+        return ("indication", cid.lower() if cid else _norm_text(node.surface_form))
+    return ("literal", _norm_text(str(node)))
+
+
+def _canon_value(value):
+    """Canonical, type-tagged qualifier value.
+
+    Numbers and numeric-looking strings collapse to ("num", float) so provider
+    serialization drift (18 vs "18") does not split the same logical edge.
+    Booleans are tagged separately from ints so True and 1 do not collide.
+    Other strings normalize via _norm_text.
+    """
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, (int, float)):
+        return ("num", float(value))
+    if isinstance(value, str):
+        stripped = value.strip()
+        try:
+            return ("num", float(stripped))
+        except ValueError:
+            return ("text", _norm_text(value))
+    return ("other", value)
+
+
+def _canon_qualifiers(qualifiers: dict) -> tuple:
+    """Sorted, type-normalized qualifier (key, value) pairs.
+
+    Keys are case-folded and sorted; values are canonicalized via _canon_value so
+    numeric drift and bool/int aliasing do not under-count the same-edge FP counter.
+    """
+    return tuple((str(key).strip().lower(), _canon_value(qualifiers[key])) for key in sorted(qualifiers))
+
+
+def canonicalize_edge(edge: Edge) -> tuple:
+    """Canonicalize an edge to a comparable, hashable tuple per D12.
+
+    Two edges with the same canonical tuple are the "same edge" for FP-counter (1).
 
     Rules:
-    1. Drug node canonical IDs (fallback to lowercased stripped surface form)
-    2. Predicate normalization (enum-constrained)
-    3. Qualifier dict sorted; string values lowercased + stripped
-    4. Tuple ordering for order-agnostic predicates (reserve; current 5 are directional)
-
-    STUB — T1/T4 deliverable.
+    1. Drug/indication node canonical IDs (fallback to normalized surface form
+       when the canonical ID is unresolved).
+    2. Predicate normalization (enum-constrained, so already canonical).
+    3. Qualifier dict sorted by key; string values normalized.
+    4. Tuple ordering reserved for future order-agnostic predicates; the current
+       five predicates are directional, so (subject, object) order is preserved.
     """
-    raise NotImplementedError("Canonicalization stub; see docs/architecture/data-model.md")
+    return (
+        edge.kind.value,
+        _canon_node(edge.subject),
+        _canon_node(edge.object),
+        _canon_qualifiers(edge.qualifiers),
+    )

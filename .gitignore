@@ -39,7 +39,16 @@ eval/labels/*.jsonl
 eval/labels/raw/
 !eval/labels/.gitkeep
 !eval/labels/README.md
+# ...but DO commit the synthetic, non-PHI sample dataset (dev/CI/demo only)
+!eval/labels/sample/
 
 # Journal artifacts (per-document state; runtime data, not source)
 journal_data/
+.paiq-journals/
 *.journal
+
+# gstack local artifacts (QA reports, sessions, state)
+.gstack/
+
+# Office temp/lock files (e.g. ~$deck.pptx while open)
+~$*

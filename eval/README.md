@@ -85,3 +85,13 @@ classification policy:
 Failing ANY of these blocks the corresponding Kill Criteria. Failing
 regression.py specifically triggers an automatic feature-flag flip
 (`paiq.d_extraction.enabled=false`) per the D12 rollback path.
+
+## What is actually in this repo vs the production label store
+
+The label files described above (`relationship_types.jsonl`,
+`contradiction_validity.jsonl`) are the PHI-adjacent PRODUCTION labels; they live
+in the access-controlled store and are NEVER committed (`.gitignore` excludes
+`eval/labels/*.jsonl`). The only dataset committed here is the SYNTHETIC, non-PHI
+sample at `eval/labels/sample/dataset.jsonl` (each record carries
+`"synthetic": true`), used by dev/CI to prove the runners execute. The 85% / 95%
+Kill Criteria gates are only meaningful on the production labels, not the sample.
