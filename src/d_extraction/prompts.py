@@ -3,8 +3,9 @@
 Per D6 + D12: the baseline prompts MUST be preserved here so the feature flag
 `paiq.d_extraction.enabled=false` can revert without a code rollback.
 
-T1 + T6 deliverable. STUB — real prompt templates land via Implementation Task T1
-once Q3 (which prompts change) closes Week 1.
+T1 + T6 deliverable. The prompts below are functional TEMPLATES (NOT
+production-validated); the real PAIQ prompts replace them when Q3 closes. The
+extractor fails closed against running a real provider on these templates.
 """
 
 from __future__ import annotations

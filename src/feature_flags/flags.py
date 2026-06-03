@@ -4,7 +4,8 @@ T6 deliverable. The actual storage backend (env var, config file, central flag
 service) is a PAIQ infrastructure concern; this module exposes a single
 interface that the rest of the code uses.
 
-STUB.
+Implemented: env-var shim (PAIQ_D_EXTRACTION_ENABLED). Production routes through
+PAIQ's central flag service.
 """
 
 from __future__ import annotations

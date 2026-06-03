@@ -10,7 +10,8 @@ This schema is the contract between:
 Per D1: provider built-ins enforce SHAPE, not SEMANTICS. Semantic correctness
 is defended by the eval suite + guardrails, NOT by this schema.
 
-T1 deliverable. STUB — real type definitions land via Implementation Task T1.
+T1 deliverable. Implemented: Pydantic models (EdgeKind, DrugNode, IndicationNode,
+Edge, DocumentExtraction) + canonicalize_edge.
 """
 
 from __future__ import annotations
