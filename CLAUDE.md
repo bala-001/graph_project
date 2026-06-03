@@ -15,6 +15,66 @@ Sibling docs to read for full context:
 - `docs/test-plan.md` — what to test where
 - `docs/architecture/` — integration spec, Kill Criteria, data model
 
+## Current state & session continuity (READ THIS FIRST)
+
+**v0.1.0 is shipped** (first internal release, 2026-06-03). The cleared scaffold is
+now a fully-implemented, installable, deployable Python package. Do NOT re-plan or
+re-scaffold; build forward from here.
+
+### What exists and works (offline, no API keys)
+- End-to-end pipeline `src/d_extraction/extractor.py::extract_document`: provider ->
+  guardrails (accept/retry/exhaust) -> batched journal -> 3-counter FP telemetry ->
+  `extraction_complete`. Multi-call (D10), flag-gated baseline rollback (D12).
+- Provider abstraction `src/d_extraction/provider.py`: `MockProvider` (offline,
+  deterministic DSL: `FIELD k=v`, `EDGE kind subj obj qual=val`), `OpenAIProvider`
+  (json_schema), `AnthropicProvider` (tool-use). `get_provider(config)`, SDKs lazy.
+- `src/config.py` `Config.from_env()` — all knobs are `PAIQ_*` env vars.
+- Guardrails (`src/guardrails/`): 4 detectors + retry + 3-counter telemetry;
+  `canonicalize_edge` in schema.py; subjects AND objects keyed via `node_canonical_id`.
+- Journal (`src/journal/`): flush/materialize/replay + `downstream.py` visibility +
+  24h-GC predicate. Shadow (`src/shadow/harness.py`): precision/recall + Wilson +
+  Clopper-Pearson + `lower_bound(method="auto")`. Cascade recal (`src/cascade_integration/`).
+- `src/cli.py` -> `paiq-d` console script (`extract` / `flag` / `version`).
+- Tests: 71 pass + 10 skip (the per-field regression suite, awaiting real labels).
+  Coverage ~91% on `src` (CI gate >=90%).
+- Packaging: `src` IS the installed package (pyproject `where=["."] include=["src*"]`).
+  Plus Dockerfile, `.github/workflows/ci.yml`, `docs/INSTALL.md`, `docs/DEPLOYMENT.md`,
+  `CHANGELOG.md`.
+
+### Safety model (healthcare — do NOT weaken)
+- Default provider = offline `mock`; D flag (`PAIQ_D_EXTRACTION_ENABLED`) defaults OFF.
+- FAIL-CLOSED: a real provider refuses to run on the bundled TEMPLATE prompts
+  (`src/d_extraction/prompts.py`) unless `PAIQ_ALLOW_TEMPLATE_PROMPTS=true`. Bundled
+  prompts are NOT production-validated; real prompts land at Q3.
+- Eval sample (`eval/labels/sample/dataset.jsonl`) is SYNTHETIC, non-PHI (each record
+  `"synthetic": true`). Real F6/PHI labels are gitignored, never committed.
+- Never fabricate real prompts, PHI labels, or "passing" Kill Criteria gate results.
+
+### Still gated on org inputs (cannot be coded here)
+Q3 real prompts, provider API keys, F6 relationship/contradiction labels + the 50-doc
+cascade-OCR eval set, sponsor commitment + complaint audit. Until these land, the
+product stays offline-safe; real-document go-live is blocked.
+
+### Git / release facts
+- GitHub remote `origin` = github.com/bala-001/graph_project. Base branch: `master`.
+- v0.1.0 shipped via PR #1 (merged to master, commit 6ccedd1) + tag `v0.1.0` pushed.
+  Feature branch deleted. Wheel at `dist/paiq_graph-0.1.0-py3-none-any.whl`.
+- `gh` CLI is NOT installed and there is no token env var; PRs and GitHub Releases
+  are created via the web UI (or install + auth `gh` first). Do NOT extract the
+  stored git credential to call the API — that is blocked and not authorized.
+- Untracked on purpose: `docs/presentation/`, `docs/workflow.md` (user-authored).
+
+### Process notes for the next session
+- Eval-trigger merge gate (see "Prompt/LLM changes" below): any PR touching
+  prompts.py / schema.py / detector.py / recal.py must run the full eval suite on
+  REAL labels before merge to master. CI runs it on the synthetic sample only.
+- OpenAI strict mode is off because the schema has open-ended maps (qualifiers,
+  existing_fields); closing them is a Q3-era schema decision.
+- Deferred (documented in DEPLOYMENT.md): rename generic `src` package -> `paiq_graph`
+  before any multi-package deployment.
+- History: `docs/planning/phase1-implementation-plan.md`, `TODOS.md`. CEO+Eng reviews
+  CLEAR; Phase 2 still deferred.
+
 ## Locked architecture decisions (from eng-review iter-5)
 
 - **D1 schema-guided decoding**: provider built-in structured outputs (OpenAI `response_format: json_schema` strict OR Anthropic tool-use). NOT a custom decoder.
@@ -53,9 +113,9 @@ Full reference at `docs/architecture/kill-criteria.md`. Critical gates:
 
 - Framework: **pytest** (Python).
 - Run: `pytest tests/` from project root.
-- Coverage target: 100% for Phase 1 — all 33-35 tests in `tests/` must pass before ship.
-- Mandatory: `tests/test_extraction_regression.py` proves no regression on existing field types (Week-4 Kill Criteria gate depends on this).
-- For prompt changes: run the eval suite at `eval/runners/edge_precision.py` AND `eval/runners/regression.py` and compare against baseline. CI gate posts results.
+- Coverage target: 100% for the full Phase 1. **Current (v0.1.0): 71 pass, 10 skip, ~91% on `src`** (CI gate >=90%). The 10 skips are `tests/test_extraction_regression.py` — the per-field iso-precision suite that needs the real F6 labels; it stays skipped until those land (do not delete or fake-pass it).
+- Mandatory: `tests/test_extraction_regression.py` proves no regression on existing field types (Week-4 Kill Criteria gate depends on this). Runs for real only against the production label store.
+- For prompt changes: run `eval/runners/edge_precision.py`, `eval/runners/regression.py`, `eval/runners/judge_pass_rate.py` (each takes `--eval-set`). CI runs them on `eval/labels/sample` (synthetic); the 85%/95% gates are only meaningful on real labels.
 
 ## Prompt/LLM changes — files that trigger eval suite
 
@@ -93,21 +153,29 @@ Key routing rules for this project:
 ## Common commands
 
 ```bash
-# Install dev dependencies
+# Install (dev = tests + coverage + scipy + provider SDKs)
 pip install -e .[dev]
 
-# Run full test suite
+# Tests + coverage gate
 pytest tests/
+pytest tests/ -o addopts="" -q --cov=src --cov-fail-under=90
 
-# Run a specific test file
-pytest tests/test_guardrails_detection.py -v
+# Run extraction offline (mock provider, D mode) via the CLI
+printf 'FIELD drug_name=Adalimumab\nEDGE requires DRUG_A DRUG_B age_min=18\n' > /tmp/doc.txt
+paiq-d extract /tmp/doc.txt --provider mock --d-mode
+paiq-d flag          # show resolved config
+paiq-d version
 
-# Run eval (edge precision per edge type)
-python eval/runners/edge_precision.py
+# Eval runners against the SYNTHETIC sample (non-PHI; dev/CI only)
+python eval/runners/edge_precision.py  --eval-set eval/labels/sample
+python eval/runners/regression.py      --eval-set eval/labels/sample
+python eval/runners/judge_pass_rate.py --eval-set eval/labels/sample --use-wilson-lower-bound
 
-# Run regression suite (iso-precision on existing field types)
-python eval/runners/regression.py
-
-# Run cascade-OCR judge re-calibration check
-python eval/runners/judge_pass_rate.py
+# Build the wheel (python -m build is shadowed by a local build/ dir; use pip wheel)
+python -m pip wheel . --no-deps -w dist
 ```
+
+Provider/flag for real use (gated — see safety model above):
+`PAIQ_PROVIDER=openai|anthropic`, `PAIQ_D_EXTRACTION_ENABLED=true`, plus
+`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`. A real provider needs real prompts (Q3) or
+`PAIQ_ALLOW_TEMPLATE_PROMPTS=true` to bypass the fail-closed guard (testing only).
